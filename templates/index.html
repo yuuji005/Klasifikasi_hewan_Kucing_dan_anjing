@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Image Classifier</title>
+    <!-- Bootstrap 5 & FontAwesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .app-header {
+            background: linear-gradient(135deg, #0062E6, #33AEFF);
+            color: white;
+            padding: 3rem 0;
+            margin-bottom: 2rem;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .card-custom {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+        }
+        .upload-area {
+            border: 2px dashed #a5b1c2;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            background-color: #fbfbfc;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #33AEFF;
+            background-color: #f1f8ff;
+        }
+        #preview {
+            max-height: 250px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .progress {
+            height: 25px;
+            border-radius: 15px;
+            background-color: #e9ecef;
+        }
+        .progress-bar {
+            background: linear-gradient(90deg, #28a745, #20c997);
+            font-weight: bold;
+            font-size: 1rem;
+            line-height: 25px;
+        }
+        .graph-img {
+            width: 100%;
+            border-radius: 10px;
+            border: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="app-header text-center">
+        <div class="container">
+            <h1 class="fw-bold"><i class="fas fa-brain me-2"></i>Sistem Klasifikasi Citra AI</h1>
+            <p class="lead mb-0">Didukung oleh Arsitektur Transfer Learning XCeption</p>
+        </div>
+    </header>
+
+    <div class="container mb-5">
+        <div class="row g-4">
+            
+            <!-- Kolom Prediksi -->
+            <div class="col-lg-6">
+                <div class="card card-custom h-100">
+                    <div class="card-body p-4">
+                        <h4 class="card-title fw-bold mb-4"><i class="fas fa-camera me-2 text-primary"></i>Uji Gambar</h4>
+                        
+                        <div class="mb-3">
+                            <label class="form-label text-muted">Pilih atau letakkan gambar di bawah ini</label>
+                            <input class="form-control" type="file" id="fileInput" accept="image/*">
+                        </div>
+
+                        <div class="text-center mb-4">
+                            <img id="preview" class="img-fluid d-none mx-auto mt-2" alt="Preview">
+                        </div>
+
+                        <button id="analyzeBtn" class="btn btn-primary w-100 py-2 fw-bold" onclick="uploadImage()" disabled>
+                            <i class="fas fa-search me-2"></i>Analisis Gambar
+                        </button>
+
+                        <!-- Area Hasil -->
+                        <div id="resultContainer" class="mt-4 d-none">
+                            <h5 class="fw-bold text-center mb-2">Hasil Deteksi: <span id="resultLabel" class="text-primary"></span></h5>
+                            <p class="text-muted text-center mb-1 small">Tingkat Akurasi (Confidence)</p>
+                            <div class="progress shadow-sm">
+                                <div id="confidenceBar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kolom Grafik Training -->
+            <div class="col-lg-6">
+                <div class="card card-custom h-100">
+                    <div class="card-body p-4">
+                        <h4 class="card-title fw-bold mb-4"><i class="fas fa-chart-line me-2 text-success"></i>Performa Model</h4>
+                        <p class="text-muted small mb-3">Grafik metrik evaluasi akurasi dan kerugian (loss) selama proses pelatihan model menggunakan algoritma XCeption.</p>
+                        
+                        <div class="text-center">
+                            <!-- Pastikan nama file sesuai dengan yang Anda simpan di folder static -->
+                            <img src="{{ url_for('static', filename='training_graph.png') }}" alt="Grafik Training" class="img-fluid graph-img shadow-sm" onerror="this.onerror=null; this.src='https://via.placeholder.com/600x300?text=Grafik+Training+Belum+Tersedia';">
+                        </div>
+                        
+                        <div class="mt-4 p-3 bg-light rounded border">
+                            <h6 class="fw-bold mb-2"><i class="fas fa-info-circle me-2 text-info"></i>Informasi Arsitektur</h6>
+                            <ul class="mb-0 text-muted small">
+                                <li><strong>Base Model:</strong> XCeption (Pre-trained on ImageNet)</li>
+                                <li><strong>Input Shape:</strong> 299 x 299 px</li>
+                                <li><strong>Optimization:</strong> Adam Optimizer</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const preview = document.getElementById('preview');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const resultContainer = document.getElementById('resultContainer');
+        const resultLabel = document.getElementById('resultLabel');
+        const confidenceBar = document.getElementById('confidenceBar');
+
+        // Preview Image and Enable Button
+        fileInput.addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.classList.remove('d-none');
+                    analyzeBtn.disabled = false;
+                    
+                    // Reset Result area when new image is chosen
+                    resultContainer.classList.add('d-none');
+                    confidenceBar.style.width = '0%';
+                    confidenceBar.innerText = '0%';
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Fetch API to predict
+        function uploadImage() {
+            if (!fileInput.files[0]) return;
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+            
+            // UI Loading State
+            analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Memproses...';
+            analyzeBtn.disabled = true;
+
+            fetch("/predict", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.prediction) {
+                    const confidencePercent = (data.confidence * 100).toFixed(2);
+                    
+                    // Show result container
+                    resultContainer.classList.remove('d-none');
+                    resultLabel.innerText = data.prediction.toUpperCase();
+                    
+                    // Animate Progress Bar
+                    setTimeout(() => {
+                        confidenceBar.style.width = confidencePercent + '%';
+                        confidenceBar.innerText = confidencePercent + '%';
+                        
+                        // Change color based on confidence
+                        if(confidencePercent > 80) {
+                            confidenceBar.className = "progress-bar bg-success progress-bar-striped progress-bar-animated";
+                        } else if(confidencePercent > 50) {
+                            confidenceBar.className = "progress-bar bg-warning progress-bar-striped progress-bar-animated";
+                        } else {
+                            confidenceBar.className = "progress-bar bg-danger progress-bar-striped progress-bar-animated";
+                        }
+                    }, 100);
+
+                } else {
+                    alert("Terjadi kesalahan saat memprediksi.");
+                }
+            })
+            .catch(error => {
+                console.error("Error:", error);
+                alert("Gagal terhubung ke server.");
+            })
+            .finally(() => {
+                // Reset Button State
+                analyzeBtn.innerHTML = '<i class="fas fa-search me-2"></i>Analisis Gambar';
+                analyzeBtn.disabled = false;
+            });
+        }
+    </script>
+</body>
+</html>
